@@ -31,6 +31,7 @@ char cParse::Token::getWs(char prev)
 {
 	if((prev == CTOK_ENDM)||((value() == 
 	CTOK_MACRO)&&(prev > 0))) return '\n';
+	if(macro()) { return wspc() ? ' ' : '\0'; }
 	if( is_one_of(value(), CTOK_NAME, CTOK_NUM)
 	&& is_one_of(prev, CTOK_NAME, CTOK_NUM) )
 		return ' ';
@@ -104,8 +105,11 @@ cParse::Token cParse::get(int flags)
 {
 	char* curPos = state.curPos; SCOPE_EXIT(state.curPos = curPos);
 NEXT_TOKEN: char ch = *curPos; int ti = cTokTab[ch];
-NEXT_TOKEN2: Token token{curPos++, ti }; VARFIX(token.vl);
-	if(ti < 0) return token; token.vl &= -97;
+NEXT_TOKEN2: Token token{curPos, ti | 
+	(state.inMacro << 8) }; VARFIX(token.vl);
+	if(ti < 0) { if(state.inMacro) { state.inMacro = 0;
+		token.vl = CTOK_ENDM; } return token;
+	} token.vl &= -97; curPos++;
 
 	switch(token.value())
 	{
@@ -113,7 +117,7 @@ NEXT_TOKEN2: Token token{curPos++, ti }; VARFIX(token.vl);
 		for(;; curPos++) { if((state.inMacro)&&(ch == '\n')) {
 		state.inMacro = 0; token.vl = CTOK_ENDM; return token; }
 		ti = cTokTab[ch = *curPos]; if(ti != CTOK_WSPC) {
-		ti |= 0x100; goto NEXT_TOKEN2; } }
+		ti |= 0x200; goto NEXT_TOKEN2; } }
 
 	case CTOK_DIV:
 		if(*curPos == '/'){ curPos++; while(!is_one_of(

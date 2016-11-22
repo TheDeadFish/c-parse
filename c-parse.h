@@ -30,10 +30,11 @@ struct cParse
 
 	struct Token { char* str; int vl; 
 		char value() { return vl & 255; }
-		bool wspc() { return vl & 256; }
-		cstr cStr() { return {str, vl>>9}; }
+		bool macro() { return vl & 256; }
+		bool wspc() { return vl & 512; }
+		cstr cStr() { return {str, vl>>10}; }
 		void setEnd(char* ep) { vl
-			|= (PTRDIFF(ep,str) << 9); }	
+			|= (PTRDIFF(ep,str) << 10); }	
 		char getWs(char value);
 		cstr getStr(void); 
 		void as(int index) { str 
