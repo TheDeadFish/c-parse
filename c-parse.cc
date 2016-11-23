@@ -127,8 +127,11 @@ NEXT_TOKEN2: Token token{curPos, ti |
 			goto NEXT_TOKEN; } break;
 	
 	case CTOK_MACRO:
-		if(state.inMacro) { token.vl += 
+		if(state.inMacro) { HASH: token.vl += 
 			CTOK_HASH-CTOK_MACRO; return token; }
+		for(char* pos = token.str; pos > base;) { 
+			pos--; if(u8(*pos) >= ' ') goto HASH;
+			if(*pos == '\n') break; }
 		while(u8(*curPos) > ' ') curPos++;
 		state.inMacro = 1; token.setEnd(curPos); 
 		return token;
