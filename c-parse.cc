@@ -31,7 +31,7 @@ char cParse::Token::getWs(char prev)
 {
 	if((prev == CTOK_ENDM)||((value() == 
 	CTOK_MACRO)&&(prev > 0))) return '\n';
-	if(macro()) { return wspc() ? ' ' : '\0'; }
+	if(nspc()) return ' ';
 	if( is_one_of(value(), CTOK_NAME, CTOK_NUM)
 	&& is_one_of(prev, CTOK_NAME, CTOK_NUM) )
 		return ' ';
@@ -105,14 +105,20 @@ cParse::Token cParse::get(int flags)
 {
 	char* curPos = state.curPos; SCOPE_EXIT(state.curPos = curPos);
 NEXT_TOKEN: char ch = *curPos; int ti = cTokTab[ch];
-NEXT_TOKEN2: Token token{curPos, ti | 
-	(state.inMacro << 8) }; VARFIX(token.vl);
+NEXT_TOKEN2: Token token{curPos, ti}; 
+	if(state.inMacro > 0) { if(state.inMacro < 5)
+		state.inMacro++; token.vl |= 0x100; }
+	VARFIX(token.vl);
 	if(ti < 0) { if(state.inMacro) { state.inMacro = 0;
 		token.vl = CTOK_ENDM; } return token;
 	} token.vl &= -97; curPos++;
 
 	switch(token.value())
 	{
+	case CTOK_LBR: if(state.inMacro == 4)
+		state.inMacro = ~state.inMacro; break;
+	case CTOK_RBR: if(state.inMacro < 0)
+		state.inMacro = ~state.inMacro; break;
 	case CTOK_WSPC: 
 		for(;; curPos++) { if((state.inMacro)&&(ch == '\n')) {
 		state.inMacro = 0; token.vl = CTOK_ENDM; return token; }
@@ -130,9 +136,10 @@ NEXT_TOKEN2: Token token{curPos, ti |
 		if(state.inMacro) { HASH: token.vl += 
 			CTOK_HASH-CTOK_MACRO; return token; }
 		for(char* pos = token.str; pos > base;) { 
-			pos--; if(u8(*pos) >= ' ') goto HASH;
+			pos--; if(u8(*pos) > ' ') goto HASH;
 			if(*pos == '\n') break; }
-		while(u8(*curPos) > ' ') curPos++;
+		while(is_one_of(cTokTab[u8(*curPos)]
+			, CTOK_NAME, CTOK_NUM)) curPos++;
 		state.inMacro = 1; token.setEnd(curPos); 
 		return token;
 	
@@ -201,8 +208,6 @@ cParse::Parse_t cParse::parse(int flags)
 			return {(Token*)tok.str, (Token*)0}; }
 	} return {token, count-1};
 }
-
-#define REF_PTR(t, n1, n2) t n1 = n2; SCOPE_EXIT(n2 = n1);
 
 cstr cParse::Parse_t::nTerm(void)
 {

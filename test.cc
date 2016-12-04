@@ -1,5 +1,5 @@
 #include <stdshit.h>
-#include "c-parse.cc"
+#include "c-parse.h"
 const char progName[] = "test";
 
 void token_out(cParse::Parse_t lst)

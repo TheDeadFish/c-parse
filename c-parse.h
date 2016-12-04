@@ -30,7 +30,7 @@ struct cParse
 
 	struct Token { char* str; int vl; 
 		char value() { return vl & 255; }
-		bool macro() { return vl & 256; }
+		bool nspc() { return !(~vl&768); }
 		bool wspc() { return vl & 512; }
 		cstr cStr() { return {str, vl>>10}; }
 		void setEnd(char* ep) { vl
@@ -49,7 +49,6 @@ struct cParse
 		bool getArgs(xVector<Parse_t>& args);
 		cstr getCall(xVector<Parse_t>& args);
 		cstr nTerm(void);
-		
 		byte valAt(int i = 0) { return chk(data+i)
 			? data->value() : CTOK_EOF; }
 	};
@@ -70,7 +69,7 @@ struct cParse
 	Token* tokBase; Parse_t tokLst;
 	char* base;	int* newLineList;
 	int nNewListList; struct State {
-		char* curPos; bool inMacro; }; 
+		char* curPos; char inMacro; }; 
 	State state;
 };
 
