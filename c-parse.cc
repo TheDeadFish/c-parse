@@ -1,12 +1,25 @@
 #include "stdshit.h"
 #include "c-parse.h"
 
-const char ctokStr[][4] = {" ", "", "", "", "", "", "", "@",
+template <int N> struct Str8 { char len; char str[N];
+	constexpr Str8(cch* in) : len(0), str{} {
+		for(; in[len]; len++) str[len] = in[len]; } 
+	cstr cStr() { return {str, len}; }
+	bool cmp(cstr s) { if(len != s.slen) return false;
+		for(int i = 0; i < len; i++) if(toLower(s[i])
+			!= str[i]) return false; return true; }
+};
+	
+Str8<3> ctokStr[] = {"", "", "", "", "", "", "", "@",
 	",", "(", ")", "{", "}", "[", "]", ";", "?", ".", ":", "+",
 	"-", "&", "|", "^", "~", "=", "!", "<", ">", "*", "/", "%",
 	"#", "<<", ">>", "->", "->*", ".*", "...", "::", "++", "--",
 	"&&", "||", "+=", "-=", "&=", "|=", "^=", "~=", "==", "!=",
 	"<=", ">=", "*=", "/=", "%=", "<<=", ">>=" };
+
+Str8<7> cppStr[] = { "define", "include", "undef",
+	"ifdef", "ifndef", "if", "elif", "else", "endif",
+	"error", "pragma", "line" };
 
 REGCALL(1) std::pair<cch*,
 	int> strLitType(cch* str)
@@ -43,9 +56,27 @@ char cParse::Token::getWs(char prev)
 
 cstr cParse::Token::getStr(void)
 {
-	cch* str = ctokStr[value()];
-	if(*str == '\0') return cStr(); 
-	return {str, 1 + !!str[1] + !!str[2]};
+	cstr str = ctokStr[value()].cStr();
+	return str.slen ? str : cStr();
+}
+
+int cParse::Token::cppType(void)
+{
+	if(value() != CTOK_MACRO) return -1;
+	cstr str = cStr().right(1);
+	int type = 0;
+	for(; type < ARRAYSIZE(cppStr); type++)
+		if(cppStr[type].cmp(str)) break;
+	return type;
+}
+
+int cParse::Token::compar(const Token& that)
+{
+	int diff = (vl&511) - (that.vl&511);
+	if((diff)||(u8(value())
+		>= CTOK_AT)) return diff;
+	cstr x = that.cStr(); cstr y = cStr();
+	return cStr().cmp(that.cStr());
 }
 
 void cParse::free(void)
@@ -107,7 +138,7 @@ cParse::Token cParse::get(int flags)
 NEXT_TOKEN: char ch = *curPos; int ti = cTokTab[ch];
 NEXT_TOKEN2: Token token{curPos, ti}; 
 	if(state.inMacro > 0) { if(state.inMacro < 5)
-		state.inMacro++; token.vl |= 0x100; }
+		state.inMacro++; token.vl |= 0x200; }
 	VARFIX(token.vl);
 	if(ti < 0) { if(state.inMacro) { state.inMacro = 0;
 		token.vl = CTOK_ENDM; } return token;
@@ -123,7 +154,7 @@ NEXT_TOKEN2: Token token{curPos, ti};
 		for(;; curPos++) { if((state.inMacro)&&(ch == '\n')) {
 		state.inMacro = 0; token.vl = CTOK_ENDM; return token; }
 		ti = cTokTab[ch = *curPos]; if(ti != CTOK_WSPC) {
-		ti |= 0x200; goto NEXT_TOKEN2; } }
+		ti |= 0x100; goto NEXT_TOKEN2; } }
 
 	case CTOK_DIV:
 		if(*curPos == '/'){ curPos++; while(!is_one_of(
@@ -209,12 +240,48 @@ cParse::Parse_t cParse::parse(int flags)
 	} return {token, count-1};
 }
 
-cstr cParse::Parse_t::nTerm(void)
+byte cParse::Parse_t::
+	print(FILE* fp, byte prevTok)
 {
-	if(chk() == false) return NULL;
+	for(auto tok : *this) {
+		if(tok.value() < 0) break;
+		char ch = tok.getWs(prevTok);
+		prevTok = tok.value();
+		if(ch) fprintf(fp, "%c", ch);
+		fprintf(fp, "%.*s",tok.getStr().prn());
+	} return prevTok;
+}
+
+cstr cParse::Parse_t::text(void)
+{
+	if(chk() == false) return {0,0};
 	char *base = data->str, *end = end_->str;
 	while((end > base)&&(u8(end[-1]) <= ' '))
-		end--; *end = 0; return {base, end};
+		end--; return {base, end};	
+}
+
+cstr cParse::Parse_t::nTerm(void)
+{
+	cstr str = text(); if(str) 
+		*str.end() = 0; return str;
+}
+
+cParse::Parse_t cParse::Parse_t::cppBlock()
+{
+	Token* base = data; Token* cp = data;
+	if(chk(cp)) { if(cp++->value() == CTOK_MACRO) {
+		while(chk(cp) && (cp++->value() != CTOK_ENDM));
+	} else {
+		while(chk(cp) && (cp->value() != CTOK_MACRO)) cp++;
+	}} data = cp; return {base, data};
+}
+
+int cParse::Parse_t::compar(Parse_t& that)
+{
+	int diff = count() - that.count();
+	if(!diff) for(int i : Range(0, count())) {
+		diff = (*this)[i].compar(that[i]);
+		if(diff) break; } return diff;
 }
 
 cParse::Parse_t cParse::Parse_t::getArg()
@@ -252,4 +319,50 @@ cstr cParse::Parse_t::getCall(
 	if(!getArgs(args))
 		return {(char*)data->str, 0};
 	return ret;
+}
+
+bool cParse::Block_t::init(cParse::Parse_t lst)
+{
+	return init_(lst);
+}
+
+cParse::Parse_t cParse::Block_t::
+	init_(cParse::Parse_t& lst)
+{
+	bool ifState = false;
+	while(1) { auto block = lst.cppBlock();
+	NEXT_BLOCK:	if(!block.chk()) { if(!ifState)
+		block = {0,0}; return block; }
+		
+		switch(block->cppType()) 
+		{
+		CPP_CASE_EI:
+			if(!ifState) return block;
+			ifState = false; break;
+		CPP_CASE_EL:
+			if(!ifState) return block;
+		CPP_CASE_IF: {
+			auto& chld = push_back(block);
+			block = chld.init_(lst);
+			ifState = true;
+			goto NEXT_BLOCK; }
+		}
+		
+		push_back(block);
+	}
+}
+
+void cParse::Block_t::
+	branch(int idx, bool taken)
+{
+	// locate bounds of if-endif
+	int ifend = idx; while(data[ifend].
+		tok->cppType() != CPP_ENDIF) ifend++;
+	int ifbeg = idx; while(!CPP_RNG_IF(
+		data[ifbeg].tok->cppType())) ifbeg--;
+	
+	// handle taken
+	assert(taken == true);
+	for(int i = ifbeg; i <= ifend; i++) {
+		this->kill(i, i != idx); }
 }
