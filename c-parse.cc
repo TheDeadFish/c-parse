@@ -81,16 +81,15 @@ int cParse::Token::compar(const Token& that)
 
 void cParse::free(void)
 {
-	::free(base); ::free(newLineList);
+	if(mustDelete)::free(base);
+	::free(newLineList);
 	::free(tokBase); ZINIT;
 }
 
-bool cParse::load(const char* name)
+void cParse::load_(void* data)
 {
 	this->free();
-	auto file = loadFile(name, 1);
-	if(!file.data) return false;
-	base = (char*)file.data;	
+	base = (char*)data;	
 	char *src = base, *dst = base;
 	for(;;) { char ch = RDI(src); switch(ch) {
 		case '\r': if(*src == '\n') src++; ch = '\n';
@@ -99,15 +98,31 @@ bool cParse::load(const char* name)
 			= dst-base;	continue; } }
 		WRI(dst, ch); if(!ch) break; }
 	this->reset();
+}
+
+bool cParse::load(const char* name)
+{
+	this->free();
+	auto file = loadFile(name, 1);
+	if(!file.data) return false;
+	load_(file.data);
+	mustDelete = true;
 	return true;
+}
+
+char* cParse::load2_(void* data, int flags)
+{
+	load_(data); auto tmp = parse(flags);
+	if(!tmp.end_) { return (char*)tmp.data; }
+	tokBase = tmp; tokLst = tmp; return NULL;
 }
 
 char* cParse::load2(const char* name, int flags)
 {
-	if(!load(name)) return (char*)1;
-	auto tmp = parse(flags);
-	if(!tmp.end_) { return (char*)tmp.data; }
-	tokBase = tmp; tokLst = tmp; return NULL;
+	this->free();
+	auto file = loadFile(name, 1);
+	if(!file.data) return (char*)1;
+	return load2_(file.data, flags);
 }
 
 std::pair<int,int> cParse::getLine(char* str)

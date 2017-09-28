@@ -99,11 +99,13 @@ struct cParse
 	};
 
 	// load/init initerface
-	cParse() : base(0), newLineList(0), tokBase(0) {}
+	cParse() { ZINIT; }
 	~cParse() { this->free(); } void free(void);
 	void reset(void) { state = {base, 0}; }
 	bool load(const char* name);
 	char* load2(const char* name, int flags);
+	void load_(void* data);
+	char* load2_(void* data, int flags);
 	
 	// parsing interface
 	Token get(int flags = 0); 
@@ -115,7 +117,7 @@ struct cParse
 	char* base;	int* newLineList;
 	int nNewListList; struct State {
 		char* curPos; char inMacro; }; 
-	State state;
+	State state; bool mustDelete;
 };
 
 #endif
