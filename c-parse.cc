@@ -189,8 +189,8 @@ NEXT_TOKEN2: Token token{curPos, ti};
 		state.inMacro = 1; token.setEnd(curPos); 
 		return token;
 	
-	case CTOK_NUM: ch = '.';
-	case CTOK_NAME:
+	case CTOK_NUM: ch = '.'; if(0) { 
+	case CTOK_NAME: ch = '$'; }
 		for(;(*curPos == ch)||is_one_of(cTokTab[(*curPos)]
 			&31, CTOK_NAME, CTOK_NUM); curPos++);
 		 if(*curPos == '"') { auto type = strLitType(
@@ -270,9 +270,7 @@ byte cParse::Parse_t::
 cstr cParse::Parse_t::text(void)
 {
 	if(chk() == false) return {0,0};
-	char *base = data->str, *end = end_->str;
-	while((end > base)&&(u8(end[-1]) <= ' '))
-		end--; return {base, end};	
+	return {f().str, l().getStr().end() };
 }
 
 cstr cParse::Parse_t::nTerm(void)
@@ -299,16 +297,39 @@ int cParse::Parse_t::compar(Parse_t& that)
 		if(diff) break; } return diff;
 }
 
+
+struct BraceStack {
+	byte stack[256]; 
+	uint stackPos = 0;
+	bool push(byte value);
+	bool pop(byte value);
+};
+
+bool BraceStack::push(byte value)
+{
+	if(!is_one_of(value, CTOK_LBR,
+	CTOK_LCBR, CPP_LQBR)) return false;
+	if(stackPos >= 256) stackPos = -1;
+	else { stack[stackPos] = value;
+	stackPos++; } return true;
+}
+
+bool BraceStack::pop(byte value)
+{
+	if(!is_one_of(value, CTOK_RBR,
+	CTOK_RCBR, CTOK_RQBR)) return false;
+	if((!stackPos)||(stack[--stackPos] != 
+	(value-1))){stackPos = -1; } return true;
+}
+
 cParse::Parse_t cParse::Parse_t::getArg()
 {
-	Token* base = data;
-	for(int bracketLevel = 0; chk2();)
-	switch(fi().value()) {
-	case CTOK_LBR: bracketLevel++; break;	
-	case CTOK_RBR: bracketLevel--;
-	case CTOK_COMMA: if(bracketLevel > 0) break;
-		return {base, data-1};
-	} return {0,0};
+	BraceStack stack; Token* base = data;
+	for(int bracketLevel = 0; chk2();) {
+	byte value = fi().value();
+	if(!stack.push(value)) { if((!stack.stackPos)
+	&&(is_one_of(value, CTOK_COMMA, CTOK_RBR))) return 
+	{base, data-1}; stack.pop(value); }} return {0,0};
 }
 
 bool cParse::Parse_t::getArgs(
