@@ -32,7 +32,7 @@ REGCALL(1) std::pair<cch*,
 
 static const char cTokTab[] = {
 	-1,-2,-2,-2,-2,-2,-2,-2,-2,0,0,-2,-2,0,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,
-	-2,-2,-2,-2,-2,-2,0,58,5,1,-2,61,117,6,9,10,61,115,8,116,17,62,4,4,4,4,4,4,
+	-2,-2,-2,-2,-2,-2,0,58,5,1,0,61,117,6,9,10,61,115,8,116,17,62,4,4,4,4,4,4,
 	4,4,4,4,82,15,123,57,124,16,7,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
 	3,3,3,3,13,-2,14,55,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
 	3,11,118,12,56,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
@@ -166,6 +166,7 @@ NEXT_TOKEN2: Token token{curPos, ti};
 	case CTOK_RBR: if(state.inMacro < 0)
 		state.inMacro = ~state.inMacro; break;
 	case CTOK_WSPC: 
+		if(ch == '$') { token.vl += CTOK_DOLAR; return token; }
 		for(;; curPos++) { if((state.inMacro)&&(ch == '\n')) {
 		state.inMacro = 0; token.vl = CTOK_ENDM; return token; }
 		ti = cTokTab[ch = *curPos]; if(ti != CTOK_WSPC) {
@@ -270,7 +271,8 @@ byte cParse::Parse_t::
 cstr cParse::Parse_t::text(void)
 {
 	if(chk() == false) return {0,0};
-	return {f().str, l().getStr().end() };
+	int len = l().getStr().slen;
+	return {f().str, l().str+len };
 }
 
 cstr cParse::Parse_t::nTerm(void)
@@ -355,6 +357,33 @@ cstr cParse::Parse_t::getCall(
 	if(!getArgs(args))
 		return {(char*)data->str, 0};
 	return ret;
+}
+
+cParse::Parse_t cParse::Parse_t::tok(int token)
+{
+	while(chk() && (f().value() == token)) fi();
+	auto* base = data;
+	while(chk() && (f().value() != token)) fi();
+	if(base == data) return {0,0}; return {base, data};
+}
+
+cParse::Token* cParse::Parse_t::chr(int token)
+{
+	for(auto* curPos = data; chk(curPos); curPos++)
+		if(curPos->value() == token) return curPos;
+	return NULL;
+}
+
+cParse::Parse_t cParse::Parse_t::splitL(int token)
+{
+	if(auto* ptr = chr(token)) { SCOPE_EXIT(data=ptr);
+		return {data, ptr}; } return {0,0};
+}
+
+cParse::Parse_t cParse::Parse_t::splitR(int token)
+{
+	if(auto* ptr = chr(token)) { SCOPE_EXIT(data=ptr+1);
+		return {data, ptr+1}; } return {0,0};
 }
 
 bool cParse::Block_t::init(cParse::Parse_t lst)

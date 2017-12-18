@@ -18,8 +18,8 @@ enum {
 	// derived operators
 	CTOK_HASH, CTOK_SHL, CTOK_SHR, CTOK_DREF, 
 	CTOK_DREF_PM, CTOK_REF_PM, CTOK_DOT3,
-	CTOK_SCOPE, CTOK_INC, CTOK_DEC,
-	CTOK_LAND, CTOK_LOR, CTOK_MODEQU,
+	CTOK_SCOPE, CTOK_INC, CTOK_DEC, CTOK_LAND,
+	CTOK_LOR, CTOK_DOLAR, CTOK_MODEQU,
 };
 
 enum {
@@ -68,6 +68,15 @@ struct cParse
 		Parse_t getArg();
 		bool getArgs(xVector<Parse_t>& args);
 		cstr getCall(xVector<Parse_t>& args);
+		
+		Parse_t tok(int token);
+		Token* chr(int token);
+		Parse_t splitL(int token); 
+		Parse_t splitR(int token); 
+		
+		
+		
+		
 		
 		
 		
