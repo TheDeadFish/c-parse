@@ -324,13 +324,12 @@ bool BraceStack::pop(byte value)
 	(value-1))){stackPos = -1; } return true;
 }
 
-cParse::Parse_t cParse::Parse_t::getArg()
+cParse::Parse_t cParse::Parse_t::getArg(byte token)
 {
 	BraceStack stack; Token* base = data;
-	for(int bracketLevel = 0; chk2();) {
-	byte value = fi().value();
+	while(chk2()) { byte value = fi().value();
 	if(!stack.push(value)) { if((!stack.stackPos)
-	&&(is_one_of(value, CTOK_COMMA, CTOK_RBR))) return 
+	&&(is_one_of(value, CTOK_COMMA, token))) return 
 	{base, data-1}; stack.pop(value); }} return {0,0};
 }
 

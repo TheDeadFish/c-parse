@@ -65,7 +65,7 @@ struct cParse
 			? data->value() : CTOK_EOF; }
 
 		// high level parsing
-		Parse_t getArg();
+		Parse_t getArg(byte tok = CTOK_RBR);
 		bool getArgs(xVector<Parse_t>& args);
 		cstr getCall(xVector<Parse_t>& args);
 		
