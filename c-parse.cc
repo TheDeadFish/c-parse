@@ -82,20 +82,19 @@ int cParse::Token::compar(const Token& that)
 void cParse::free(void)
 {
 	if(mustDelete)::free(base);
-	::free(newLineList);
+	::free(lineList.data);
 	::free(tokBase); ZINIT;
 }
 
 void cParse::load_(void* data)
 {
-	this->free();
-	base = (char*)data;	
+	this->free(); base = (char*)data;	
 	char *src = base, *dst = base;
+	lineList.push_back(dst);
 	for(;;) { char ch = RDI(src); switch(ch) {
 		case '\r': if(*src == '\n') src++; ch = '\n';
-		case '\n': if(dst[-1] == '\\') { dst--;
-			xNextAlloc(newLineList,	nNewListList)
-			= dst-base;	continue; } }
+		case '\n': lineList.push_back(dst+1);
+		if(dst[-1] == '\\') { dst--; continue; } }
 		WRI(dst, ch); if(!ch) break; }
 	this->reset();
 }
@@ -128,23 +127,11 @@ char* cParse::load2(const char* name, int flags)
 std::pair<int,int> cParse::getLine(char* str)
 {
 	// initialize variables
-	if(base == NULL) return {0,0};
-	int* newLinePos = newLineList;
-	int* newLineEnd = newLineList+nNewListList;
-	char* curPos = base; int curLine = 0; 
-	char* curLinePtr; char* newLineVal; 
-	goto LOOP_BEGIN;
-	
-	for(;;) { // restore deleted new-lines
-	while(curPos == newLineVal) {LOOP_BEGIN:  
-		curLine++; curLinePtr = curPos;
-		newLineVal = 0;	if(newLinePos < newLineEnd) {
-			newLineVal = base + *newLinePos++; }}
-	if((curPos == str)||(*curPos == '\0'))
-		return {curLine, curPos-curLinePtr+1};
-	if(*curPos++ == '\n') {
-		curLine++; curLinePtr = curPos; }
-	}
+	if(base == NULL) return {0,0}; int best = -1;
+	for(int i = 0; i < lineList.len; i++) {
+		if(lineList[i] > str) break; best = i; }
+	if(best>=0) { return {best+1, (str-
+		lineList[best])+1}; } return {-1,-1};
 }
 
 cParse::Token cParse::get(int flags)

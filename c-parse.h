@@ -123,9 +123,8 @@ struct cParse
 	
 	// file info
 	Token* tokBase; Parse_t tokLst;
-	char* base;	int* newLineList;
-	int nNewListList; struct State {
-		char* curPos; char inMacro; }; 
+	char* base;	xarray<char*> lineList;
+	struct State { char* curPos; char inMacro; }; 
 	State state; bool mustDelete;
 };
 
